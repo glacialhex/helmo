@@ -3,6 +3,7 @@ require_once __DIR__ . '/../lib/auth.php';
 require_once __DIR__ . '/../lib/db.php';
 require_once __DIR__ . '/../lib/csrf.php';
 require_once __DIR__ . '/../lib/util.php';
+require_once __DIR__ . '/../lib/eav.php';
 Auth::start();
 Auth::requireRole(['Admin','Teacher']);
 $pdo = DB::conn();
@@ -11,30 +12,24 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_post_csrf();
     $action = $_POST['action'] ?? '';
-    if ($action === 'add_attr') {
+  if ($action === 'add_attr') {
         $name = trim($_POST['name'] ?? '');
         $type = $_POST['data_type'] ?? 'text';
         if ($name && in_array($type, ['text','number','date','bool'], true)) {
-            $pdo->prepare("INSERT INTO eav_attributes (entity_type, name, data_type) VALUES ('student', ?, ?)")->execute([$name,$type]);
+      EAVService::addAttribute($pdo, 'student', $name, $type);
         } else { $error = 'Invalid attribute.'; }
-    } elseif ($action === 'save_value') {
+  } elseif ($action === 'save_value') {
         $student_id = (int)($_POST['student_id'] ?? 0);
         $attribute_id = (int)($_POST['attribute_id'] ?? 0);
         $type = $_POST['data_type'] ?? 'text';
         $value = $_POST['value'] ?? '';
-        $cols = ['value_text'=>null,'value_number'=>null,'value_date'=>null,'value_bool'=>null];
-        if ($type==='number') $cols['value_number'] = (float)$value;
-        elseif ($type==='date') $cols['value_date'] = $value;
-        elseif ($type==='bool') $cols['value_bool'] = $value==='1'?1:0;
-        else $cols['value_text'] = trim($value);
-        $pdo->prepare('INSERT INTO eav_values (entity_type, entity_id, attribute_id, value_text, value_number, value_date, value_bool) VALUES ("student",?,?,?,?,?,?) ON DUPLICATE KEY UPDATE value_text=VALUES(value_text), value_number=VALUES(value_number), value_date=VALUES(value_date), value_bool=VALUES(value_bool)')
-            ->execute(['student',$student_id,$attribute_id,$cols['value_text'],$cols['value_number'],$cols['value_date'],$cols['value_bool']]);
+    EAVService::saveValue($pdo, 'student', $student_id, $attribute_id, $type, $value);
     }
 }
 
-$attrs = $pdo->query("SELECT * FROM eav_attributes WHERE entity_type='student' ORDER BY name")->fetchAll();
-$students = $pdo->query('SELECT id, first_name, last_name FROM students ORDER BY first_name')->fetchAll();
-$values = $pdo->query("SELECT ev.*, ea.name, ea.data_type, CONCAT(s.first_name,' ',s.last_name) AS student FROM eav_values ev JOIN eav_attributes ea ON ea.id=ev.attribute_id JOIN students s ON s.id=ev.entity_id WHERE ev.entity_type='student' ORDER BY s.first_name, ea.name")->fetchAll();
+$attrs = EAVService::getAttributes($pdo, 'student');
+$students = EAVService::getStudents($pdo);
+$values = EAVService::listValues($pdo, 'student');
 
 require_once __DIR__ . '/../partials/header.php';
 ?>

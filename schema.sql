@@ -165,18 +165,64 @@ CREATE TABLE eav_attributes (
 	UNIQUE KEY uniq_attr (entity_type, name)
 );
 
-CREATE TABLE eav_values (
+-- EAV Option A: Per-type value tables (no NULL columns)
+CREATE TABLE eav_values_text (
 	id INT PRIMARY KEY AUTO_INCREMENT,
 	entity_type VARCHAR(50) NOT NULL,
 	entity_id INT NOT NULL,
 	attribute_id INT NOT NULL,
-	value_text TEXT NULL,
-	value_number DECIMAL(18,4) NULL,
-	value_date DATE NULL,
-	value_bool TINYINT(1) NULL,
-	UNIQUE KEY uniq_eav (entity_type, entity_id, attribute_id),
+	value TEXT NOT NULL,
+	UNIQUE KEY uniq_eav_text (entity_type, entity_id, attribute_id),
 	FOREIGN KEY (attribute_id) REFERENCES eav_attributes(id) ON DELETE CASCADE
 );
+
+CREATE TABLE eav_values_number (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	entity_type VARCHAR(50) NOT NULL,
+	entity_id INT NOT NULL,
+	attribute_id INT NOT NULL,
+	value DECIMAL(18,4) NOT NULL,
+	UNIQUE KEY uniq_eav_number (entity_type, entity_id, attribute_id),
+	FOREIGN KEY (attribute_id) REFERENCES eav_attributes(id) ON DELETE CASCADE
+);
+
+CREATE TABLE eav_values_date (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	entity_type VARCHAR(50) NOT NULL,
+	entity_id INT NOT NULL,
+	attribute_id INT NOT NULL,
+	value DATE NOT NULL,
+	UNIQUE KEY uniq_eav_date (entity_type, entity_id, attribute_id),
+	FOREIGN KEY (attribute_id) REFERENCES eav_attributes(id) ON DELETE CASCADE
+);
+
+CREATE TABLE eav_values_bool (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	entity_type VARCHAR(50) NOT NULL,
+	entity_id INT NOT NULL,
+	attribute_id INT NOT NULL,
+	value TINYINT(1) NOT NULL,
+	UNIQUE KEY uniq_eav_bool (entity_type, entity_id, attribute_id),
+	FOREIGN KEY (attribute_id) REFERENCES eav_attributes(id) ON DELETE CASCADE
+);
+
+-- Convenience view for unified reads across value tables
+CREATE OR REPLACE VIEW eav_values_all AS
+SELECT 'text' AS data_type, t.entity_type, t.entity_id, t.attribute_id,
+	   t.value AS value_text, NULL AS value_number, NULL AS value_date, NULL AS value_bool
+FROM eav_values_text t
+UNION ALL
+SELECT 'number' AS data_type, n.entity_type, n.entity_id, n.attribute_id,
+	   NULL, n.value, NULL, NULL
+FROM eav_values_number n
+UNION ALL
+SELECT 'date' AS data_type, d.entity_type, d.entity_id, d.attribute_id,
+	   NULL, NULL, d.value, NULL
+FROM eav_values_date d
+UNION ALL
+SELECT 'bool' AS data_type, b.entity_type, b.entity_id, b.attribute_id,
+	   NULL, NULL, NULL, b.value
+FROM eav_values_bool b;
 
 INSERT INTO eav_entities (entity_type) VALUES ('student');
 
